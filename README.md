@@ -1,5 +1,5 @@
 # URL Shortener
 
-<!--## Preview
+## Preview
 
-![Preview](/preview/preview.gif)-->
+![Preview](/preview/preview.gif)

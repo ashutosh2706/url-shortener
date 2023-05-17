@@ -1,16 +1,11 @@
 const express = require('express')
-const mongoose = require('mongoose')
-const shortId = require('shortid')
-const ShortUrl = require('./models/shortUrl')
+const request = require('request');
 const app = express()
+require('dotenv').config()
 
-mongoose.set('strictQuery', true)
+var toast_type = ''
+var toast_msg = ''
 
-
-mongoose.connect('mongodb://localhost/urlShortener', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
 
 app.set('view engine', 'ejs')
 app.use(express.urlencoded({ extended: false }))
@@ -18,28 +13,50 @@ app.use(express.urlencoded({ extended: false }))
 
 
 app.get('/', async (req,res) => {
-    const obj = await ShortUrl.find()
-    res.render('index', {shortUrls: obj})
+    const obj = await fetch(process.env.API_LIST);
+    const response = await obj.json()
+    res.render('index', {list: response, type: toast_type, msg: toast_msg})
+    toast_type = ''
 })
 
 
-app.post('/shortUrls', async (req,res) => {
-    await ShortUrl.create({ 
-        full: req.body.fullUrl,
-        short: shortId.generate()
+app.post('/shrink', async (req,res) => {
+    request.post(process.env.API_SHRINK, { json: { url: req.body.originalUrl } }, (error,response,data)=>{
+        if(!error && response.statusCode == 200) {
+            console.log(data)
+            toast_type = 'success'
+            toast_msg = 'URL Shrinked Successfully'
+            res.redirect('/')
+        } else {
+            toast_type = 'error'
+            toast_msg = data.code + ' : ' + data.status
+            res.redirect('/')
+        }
     })
-    res.redirect('/')
-})
-
-// route for handling clicks on short url
-app.get('/:something', async (req,res) => {
-    const short = await ShortUrl.findOne({ short: req.params.something })         // find from db the full url corresponding to this short url
-    if(short == null) return res.sendStatus(404)
-    short.clicks++;
-    short.save()
-    res.redirect(short.full)        // redirect to full url
-
 })
 
 
-app.listen(process.env.PORT || 4000);
+app.get('/:uid', async (req,res) => {
+    let uid = req.params.uid
+    if(!(uid === 'favicon.ico' || uid === '')) {
+        const obj = await fetch(process.env.API_FIND + uid);
+        const response = await obj.json()
+        if(response.code == 200) {
+            res.redirect(response.originalUrl)
+        } else if(response.code == 410) {
+            toast_type = 'error'
+            toast_msg = 'URL Expired. Please regenerate it.'
+            res.redirect('/')
+        } else {
+            toast_type = 'error'
+            toast_msg = response.code + ' : ' + response.status
+            res.redirect('/')
+        }
+    }
+})
+
+
+
+app.listen(process.env.PORT, () => {
+    console.log(`Server started on PORT: ${process.env.PORT}`)
+});
